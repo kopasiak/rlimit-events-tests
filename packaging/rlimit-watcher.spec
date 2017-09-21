@@ -16,11 +16,17 @@ example of rlimit-events usage
 cp %{SOURCE1001} .
 
 %build
-gcc -o rlimit-watcher rlimit-watcher.c
-
+#gcc -o rlimit-watcher rlimit-watcher.c
+#gcc -DVANILLA_KERNEL=1 -o  rlimit-watcher-vanilla rlimit-watcher.c
+gcc -DENABLE_DEBUG=1 -o  rlimit-tests rlimit-tests.c
 %install
 mkdir -p %{buildroot}/usr/bin/
-cp rlimit-watcher %{buildroot}/usr/bin/
+#cp rlimit-watcher %{buildroot}/usr/bin/
+#cp rlimit-watcher-vanilla %{buildroot}/usr/bin/
+
+cp rlimit-tests %{buildroot}/usr/bin/
 
 %files
-/usr/bin/rlimit-watcher
+#/usr/bin/rlimit-watcher
+#/usr/bin/rlimit-watcher-vanilla
+/usr/bin/rlimit-tests

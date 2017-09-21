@@ -12,14 +12,21 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <sys/times.h>
+#include <errno.h>
 
+#ifndef VANILLA_KERNEL
 #include <linux/rlimit_noti.h>
+#endif
 
 #define MAX_PAYLOAD 10
+
+#define N_FILES 40000
 
 /* should be in netlink.h when compiling with correct headers */
 #define NETLINK_RLIMIT_EVENTS 23
 
+#ifndef VANILLA_KERNEL
 int configure_noti(pid_t child, int noti_fd)
 {
 	int ret;
@@ -28,7 +35,7 @@ int configure_noti(pid_t child, int noti_fd)
 			.pid = child,
 			.resource = 7 /* RLIM_NOFILE */
 		},
-		.value = 10,
+		.value = N_FILES,
 		.flags = 0,
 	};
 
@@ -38,20 +45,40 @@ int configure_noti(pid_t child, int noti_fd)
 	return ret;
 }
 
+#endif
+
+int set_big_limit()
+{
+	int ret;
+	struct rlimit limits = {
+		.rlim_cur = 50000,
+		.rlim_max = 50000,
+	};
+
+	ret  = setrlimit(RLIMIT_NOFILE, &limits);
+	if (ret < 0) {
+		perror("setrlimit");
+		return 1;
+	}
+
+	return 0;
+}
 int main()
 {
+	int i;
+	int ret;
+#ifndef VANILLA_KERNEL
 	struct sockaddr_nl src_addr, dest_addr;
 	socklen_t src_addr_len = sizeof(src_addr);
 	struct nlmsghdr *nlh = NULL;
 	struct iovec iov;
 	int sock_fd;
-	int ret;
 	int child_pipe[2];
 	int noti_fd;
 	char buf[100];
 	struct rlimit_event *ev;
 	struct rlimit_event_res_changed *res_ev;
-	int i;
+
 
 	sock_fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_RLIMIT_EVENTS);
 	if(sock_fd < 0)
@@ -90,17 +117,36 @@ int main()
 
 	ret = fork();
 	if (ret == 0) {
+#endif
 		int dum;
+		struct tms tms_start, tms_stop;
+		char path[4096];
+		
 		/* child */
+#ifndef VANILLA_KERNEL
 		close(child_pipe[1]);
 		read(child_pipe[0], &dum, sizeof(dum));
-		for (i = 0; i < 15; ++i) {
-			ret = open("/dev/null", O_RDONLY);
-			printf("Opened fd in child %d\n", ret);
-			sleep(1);
+#endif
+
+		ret = set_big_limit();
+		if (ret)
+			exit(ret);
+
+		times(&tms_start);
+		for (i = 0; i < N_FILES; ++i) {
+			snprintf(path, sizeof(path), "/root/files/file-%d", i);
+			ret = open(path, O_RDONLY);
+			if (ret < 0) 
+				printf("open failed %d %d\n", i, errno);
 		}
+		times(&tms_stop);
+
+		printf("User: %f s\n", ((float)(tms_stop.tms_utime - tms_start.tms_utime))/sysconf(_SC_CLK_TCK));
+		printf("Sys: %f s\n", ((float)(tms_stop.tms_stime - tms_start.tms_stime))/sysconf(_SC_CLK_TCK));
+		
 		exit(0);
 		/* child dead */
+#ifndef VANILLA_KERNEL
 	}
 	close(child_pipe[0]);
 
@@ -123,6 +169,6 @@ free_nlh:
 	free(nlh);
 close_socket:
 	close(sock_fd);
-
+#endif
 	return 0;
 }

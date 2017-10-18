@@ -18,7 +18,7 @@ cp %{SOURCE1001} .
 %build
 #gcc -o rlimit-watcher rlimit-watcher.c
 #gcc -DVANILLA_KERNEL=1 -o  rlimit-watcher-vanilla rlimit-watcher.c
-gcc -DENABLE_DEBUG=1 -o  rlimit-tests rlimit-tests.c
+gcc -g -DENABLE_DEBUG=1 -o  rlimit-tests rlimit-tests.c
 %install
 mkdir -p %{buildroot}/usr/bin/
 #cp rlimit-watcher %{buildroot}/usr/bin/

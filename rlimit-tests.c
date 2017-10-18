@@ -18,6 +18,8 @@
 #include <limits.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #include <linux/rlimit_noti.h>
 
@@ -39,13 +41,12 @@ int debug_enabled = 1;
 #else
 #define log(...) do { ; } while (0)
 #endif
-		
+
 
 /* should be in netlink.h when compiling with correct headers */
 #define NETLINK_RLIMIT_EVENTS 23
 
 #define RLIM_NOFILE 7
-
 int test_netlink()
 {
 	int sock_fd;
@@ -173,7 +174,7 @@ int test_open_with_time(int n_iter, const char *file_prefix)
 	printf("User: %f s\n", utime);
 	printf("Sys: %f s\n", stime);
 	printf("Total: %f s\n", utime + stime);
-	
+
 
 	return ret;
 }
@@ -181,7 +182,7 @@ int test_open_with_time(int n_iter, const char *file_prefix)
 int test_vanilla_kernel(int n_iter, uint64_t limit, const char *file_prefix)
 {
 	int ret;
-	
+
 	ret = test_set_limit(limit);
 	if (ret < 0)
 		return ret;
@@ -189,7 +190,7 @@ int test_vanilla_kernel(int n_iter, uint64_t limit, const char *file_prefix)
 	return test_open_with_time(n_iter, file_prefix);
 }
 
-int test_modified_kernel(int n_iter, uint64_t noti_level, uint64_t limit, 
+int test_modified_kernel(int n_iter, uint64_t noti_level, uint64_t limit,
 			 const char *file_prefix)
 {
 	int ret;
@@ -206,7 +207,7 @@ int test_modified_kernel(int n_iter, uint64_t noti_level, uint64_t limit,
 	noti_fd = test_netlink();
 	if (noti_fd < 0)
 		return noti_fd;
-	
+
 	ret = pipe(child_pipe);
 	if (ret < 0) {
 		log("Unable to create pipe %d", errno);
@@ -218,7 +219,7 @@ int test_modified_kernel(int n_iter, uint64_t noti_level, uint64_t limit,
 	if (ret == 0) {
 		close(child_pipe[1]);
 		close(noti_fd);
-		
+
 		read(child_pipe[0], &dum, sizeof(dum));
 		close(child_pipe[0]);
 		if (dum < 0)
@@ -239,11 +240,11 @@ int test_modified_kernel(int n_iter, uint64_t noti_level, uint64_t limit,
 					     RLIM_NOFILE, noti_level);
 		if (ret < 0)
 			goto write_error;
-		
+
 		write(child_pipe[1], &ret, sizeof(ret));
 		close(child_pipe[1]);
 		waitpid(child, &dum, 0);
-		if (WEXITSTATUS(dum)) {
+		if (WEXITSTATUS(dum) == 0) {
 			/* Now let's read the event */
 			ret = read(noti_fd, buf, sizeof(buf));
 			if (ret < 0) {
@@ -254,7 +255,10 @@ int test_modified_kernel(int n_iter, uint64_t noti_level, uint64_t limit,
 			ev = (typeof(ev))buf;
 			res_ev = (typeof(res_ev))(buf + sizeof(*ev));
 
-			log("Got event: %d, pid: %d, res: %d, new value %ld\n", ev->ev_type, res_ev->subj.pid, res_ev->subj.resource, res_ev->new_value);
+			log("Got event: %d, pid: %d, res: %d, new value "
+			    "%" PRIu64 "\n",
+			    ev->ev_type, res_ev->subj.pid,
+			    res_ev->subj.resource, res_ev->new_value);
 		}
 
 		close(noti_fd);
@@ -302,7 +306,7 @@ int main(int argc, char **argv)
 	int ret;
 
 	if (argc < 2) {
-		fprintf(stderr, "Usage:\n%s <test_name> [params]\n");
+		fprintf(stderr, "Usage:\n%s <test_name> [params]\n", argv[0]);
 		return -1;
 	}
 
@@ -352,8 +356,8 @@ int main(int argc, char **argv)
 		}
 
 		ret = test_register_noti_lvl(noti_fd, pid, resource, level);
-		
-	} else 	if (strcmp(argv[1], "test_open") == 0) {
+
+	} else	if (strcmp(argv[1], "test_open") == 0) {
 		char *file_prefix = "/root/files/file-";
 		int n_iter = 40000;
 
@@ -429,7 +433,7 @@ int main(int argc, char **argv)
 		}
 
 		ret = test_vanilla_kernel(n_iter, limit, file_prefix);
-		
+
 	} else 	if (strcmp(argv[1], "test_modified_kernel") == 0) {
 		char *file_prefix = "/root/files/file-";
 		uint64_t limit = 50000;
